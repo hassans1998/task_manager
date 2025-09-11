@@ -6,7 +6,7 @@ export default function NavPublic() {
     <nav className="navbar navbar-expand-lg navbar-light bg-light border-bottom">
       <div className="container">
         <NavLink className="navbar-brand" to="/signup">
-          MyApp
+          Task Manager
         </NavLink>
 
         <button
