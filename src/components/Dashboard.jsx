@@ -628,11 +628,6 @@ export default function Dashboard({ user: userProp }) {
           </div>
           <div className="text-muted">
             {filteredTasks.length} of {tasks.length} shown
-            {!isAdmin && (
-              <span className="ms-2" title="Only admins can create tasks">
-                · viewer mode
-              </span>
-            )}
           </div>
         </div>
 

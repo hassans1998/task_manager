@@ -481,14 +481,6 @@ export default function Projects({ user: userProp }) {
           </div>
           <div className="text-muted">
             {filteredProjects.length} of {projects.length} shown
-            {!isAdmin && (
-              <span
-                className="ms-2"
-                title="Only admins can create/edit projects"
-              >
-                · viewer mode
-              </span>
-            )}
           </div>
         </div>
 
