@@ -20,8 +20,9 @@ function statusLabel(v) {
 
 export default function Projects({ user: userProp }) {
   const [user, setUser] = useState(userProp || null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [projects, setProjects] = useState([]);
-  const [profiles, setProfiles] = useState([]); // for creator name/email
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -68,7 +69,6 @@ export default function Projects({ user: userProp }) {
     }
   };
 
-  // Overdue helper (end_date in past AND not Complete)
   const isProjectOverdue = (p) => {
     const end = toYMD(p?.end_date);
     return Boolean(end && isBefore(end, today) && Number(p?.status) !== 4);
@@ -137,9 +137,7 @@ export default function Projects({ user: userProp }) {
     a.remove();
     URL.revokeObjectURL(url);
   }
-  // --- end CSV helpers ---
 
-  // Add modal state + fields
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -148,7 +146,6 @@ export default function Projects({ user: userProp }) {
   const [endDate, setEndDate] = useState(today);
   const [submitting, setSubmitting] = useState(false);
 
-  // Edit state
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({
     name: "",
@@ -158,7 +155,6 @@ export default function Projects({ user: userProp }) {
     end_date: "",
   });
 
-  // View modal
   const [viewProject, setViewProject] = useState(null);
 
   // Filters
@@ -202,15 +198,25 @@ export default function Projects({ user: userProp }) {
     });
   }, [projects, q, statusFilter, startFrom, startTo, endFrom, endTo]);
 
-  // Resolve user
   useEffect(() => {
     if (userProp) return;
     supabase.auth.getUser().then(({ data }) => setUser(data.user || null));
   }, [userProp]);
 
-  // Load projects (GLOBAL READS – no user_id filter)
   useEffect(() => {
-    if (!user?.id) return; // ensure signed in
+    if (!user?.id) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_role")
+        .eq("id", user.id)
+        .single();
+      setIsAdmin(!error && data?.user_role === "admin");
+    })();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
     (async () => {
       setLoading(true);
       setErr("");
@@ -224,7 +230,6 @@ export default function Projects({ user: userProp }) {
     })();
   }, [user?.id]);
 
-  // Load profiles for creator name/email tooltips
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -236,10 +241,16 @@ export default function Projects({ user: userProp }) {
     })();
   }, [user?.id]);
 
-  // Create (no roles; DB should allow owner inserts)
   async function handleAdd(e) {
     e.preventDefault();
     if (!user?.id) return;
+
+    if (!isAdmin) {
+      setErr("Only admins can create projects.");
+      showToast("Only admins can create projects.", "danger");
+      return;
+    }
+
     if (!name.trim()) return setErr("Please enter a project name.");
     if (endDate && isBefore(endDate, startDate))
       return setErr("End date cannot be before the start date.");
@@ -248,7 +259,6 @@ export default function Projects({ user: userProp }) {
     setErr("");
 
     const payload = {
-      // rely on RLS/trigger to set user_id := auth.uid()
       name: name.trim(),
       description: description?.trim() || null,
       status: Number(status),
@@ -278,10 +288,9 @@ export default function Projects({ user: userProp }) {
     setSubmitting(false);
   }
 
-  // Edit (owner only in UI; RLS enforces on server)
   function startEdit(p) {
-    if (p.user_id !== user?.id) {
-      showToast("You can only edit your own project.", "warning");
+    if (!isAdmin) {
+      showToast("Only admins can edit projects.", "warning");
       return;
     }
     setEditingId(p.id);
@@ -305,6 +314,10 @@ export default function Projects({ user: userProp }) {
   }
   async function saveEdit() {
     if (!user?.id || !editingId) return;
+    if (!isAdmin) {
+      showToast("Only admins can edit projects.", "warning");
+      return;
+    }
     const { name, description, status, start_date, end_date } = editValues;
     if (!name.trim()) return setErr("Please enter a project name.");
     if (end_date && isBefore(end_date, start_date))
@@ -335,11 +348,9 @@ export default function Projects({ user: userProp }) {
     showToast("Project updated.", "success");
   }
 
-  // Delete (owner only in UI; RLS enforces on server)
   async function handleDelete(id) {
-    const row = projects.find((p) => p.id === id);
-    if (row && row.user_id !== user?.id) {
-      showToast("You can only delete your own project.", "warning");
+    if (!isAdmin) {
+      showToast("Only admins can delete projects.", "warning");
       return;
     }
     if (!window.confirm("Delete this project? This cannot be undone.")) return;
@@ -356,9 +367,12 @@ export default function Projects({ user: userProp }) {
     }
   }
 
-  // Modals
   const openAddModal = () => {
     setErr("");
+    if (!isAdmin) {
+      showToast("Only admins can create projects.", "warning");
+      return;
+    }
     setName("");
     setDescription("");
     setStatus(1);
@@ -370,11 +384,9 @@ export default function Projects({ user: userProp }) {
   const openView = (p) => setViewProject(p);
   const closeView = () => setViewProject(null);
 
-  // Date mins
   const endDateMin = startDate || today;
   const editEndMin = editValues.start_date || today;
 
-  // Close modals on Escape
   useEffect(() => {
     function onKey(e) {
       if (e.key === "Escape") {
@@ -390,7 +402,6 @@ export default function Projects({ user: userProp }) {
     <>
       <NavDashboard />
 
-      {/* Toast */}
       {toast.show && (
         <div
           className={`alert alert-${toast.variant} position-fixed top-0 start-50 translate-middle-x mt-3 shadow`}
@@ -409,7 +420,6 @@ export default function Projects({ user: userProp }) {
         </div>
       )}
 
-      {/* View modal */}
       <ViewProjectModal
         project={viewProject}
         onClose={closeView}
@@ -418,7 +428,6 @@ export default function Projects({ user: userProp }) {
         fmtDT={fmtDT}
       />
 
-      {/* Add modal */}
       <AddProjectModal
         show={showAddModal}
         onClose={closeAddModal}
@@ -444,14 +453,15 @@ export default function Projects({ user: userProp }) {
           <div className="d-flex align-items-center gap-3">
             <h1 className="mb-0">Projects</h1>
 
-            {/* Add: visible to everyone (no roles yet) */}
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={openAddModal}
-            >
-              Add project
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={openAddModal}
+              >
+                Add project
+              </button>
+            )}
 
             <button
               type="button"
@@ -471,10 +481,17 @@ export default function Projects({ user: userProp }) {
           </div>
           <div className="text-muted">
             {filteredProjects.length} of {projects.length} shown
+            {!isAdmin && (
+              <span
+                className="ms-2"
+                title="Only admins can create/edit projects"
+              >
+                · viewer mode
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Filters */}
         <ProjectFilters
           q={q}
           setQ={setQ}
@@ -492,7 +509,6 @@ export default function Projects({ user: userProp }) {
           STATUS_OPTIONS={STATUS_OPTIONS}
         />
 
-        {/* Table */}
         <ProjectTable
           loading={loading}
           projects={filteredProjects}
@@ -512,6 +528,7 @@ export default function Projects({ user: userProp }) {
           isOverdue={isProjectOverdue}
           userLabel={userLabel}
           userEmail={userEmail}
+          isAdmin={isAdmin}
         />
       </main>
     </>

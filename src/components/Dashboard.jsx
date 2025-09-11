@@ -34,7 +34,6 @@ export default function Dashboard({ user: userProp }) {
   const toastTimer = useRef(null);
   const [overdueToastShown, setOverdueToastShown] = useState(false);
 
-  // Edit state
   const [editingId, setEditingId] = useState(null);
   const [editValues, setEditValues] = useState({
     project_id: "",
@@ -45,10 +44,8 @@ export default function Dashboard({ user: userProp }) {
     assignee_id: "",
   });
 
-  // VIEW MODAL
   const [viewTask, setViewTask] = useState(null);
 
-  // ADD TASK MODAL
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Helpers
@@ -88,13 +85,11 @@ export default function Dashboard({ user: userProp }) {
   const statusLabel = (v) =>
     STATUS_OPTIONS.find((o) => o.value === v)?.label || v;
 
-  // is the task overdue? (due date in the past and not done)
   const isTaskOverdue = (t) => {
     const due = toYMD(t?.due_date);
     return Boolean(due && isBefore(due, today) && t?.status !== "done");
   };
 
-  // Lookups for user name/email
   const profilesById = useMemo(() => {
     const m = Object.create(null);
     for (const u of profiles || []) {
@@ -111,15 +106,13 @@ export default function Dashboard({ user: userProp }) {
   }, [profiles]);
 
   const userLabel = (id) => (id ? profilesById[String(id)] || "—" : "—");
-  const userEmail = (id) => (id ? profilesEmailById[String(id)] || "" : ""); // ⬅️ NEW
+  const userEmail = (id) => (id ? profilesEmailById[String(id)] || "" : "");
 
-  // Only allow selecting *my* projects (unless admin)
   const projectsForAssign = useMemo(
     () => (isAdmin ? projects : projects.filter((p) => p.user_id === user?.id)),
     [projects, isAdmin, user?.id]
   );
 
-  // New task form state (used by Add modal)
   const [projectId, setProjectId] = useState("");
   const [assignDate, setAssignDate] = useState(today);
   const [dueDate, setDueDate] = useState("");
@@ -189,7 +182,6 @@ export default function Dashboard({ user: userProp }) {
     profilesById,
   ]);
 
-  // ---------- CSV Export ----------
   function makeCSV(headers, rows) {
     const escape = (v) => {
       if (v === null || v === undefined) return "";
@@ -197,7 +189,7 @@ export default function Dashboard({ user: userProp }) {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [headers, ...rows].map((r) => r.map(escape).join(","));
-    return "\uFEFF" + lines.join("\n"); // BOM for Excel compatibility
+    return "\uFEFF" + lines.join("\n");
   }
 
   function handleExportCSV() {
@@ -242,15 +234,12 @@ export default function Dashboard({ user: userProp }) {
     a.remove();
     URL.revokeObjectURL(url);
   }
-  // --------------------------------
 
-  // Resolve user
   useEffect(() => {
     if (userProp) return;
     supabase.auth.getUser().then(({ data }) => setUser(data.user || null));
   }, [userProp]);
 
-  // Load my role (admin/employee)
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -263,12 +252,10 @@ export default function Dashboard({ user: userProp }) {
     })();
   }, [user?.id]);
 
-  // Load projects & profiles
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
       try {
-        // Include user_id so we can filter allowed projects for non-admins
         const { data: pjs } = await supabase
           .from("projects")
           .select("id,name,user_id")
@@ -287,7 +274,6 @@ export default function Dashboard({ user: userProp }) {
     })();
   }, [user?.id]);
 
-  // Load tasks (global reads)
   useEffect(() => {
     if (!user?.id) return;
     (async () => {
@@ -304,7 +290,6 @@ export default function Dashboard({ user: userProp }) {
     })();
   }, [user?.id]);
 
-  // Overdue toast
   useEffect(() => {
     if (!tasks.length || overdueToastShown) return;
     const overdue = tasks.filter(
@@ -322,7 +307,6 @@ export default function Dashboard({ user: userProp }) {
     }
   }, [tasks, today, overdueToastShown]);
 
-  // Close modals on Escape
   useEffect(() => {
     function onKey(e) {
       if (e.key === "Escape") {
@@ -334,27 +318,28 @@ export default function Dashboard({ user: userProp }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [showAddModal, viewTask]);
 
-  // Helpers for ownership
-  const canEditTask = (t) => t?.user_id === user?.id || isAdmin;
+  // Role helpers
+  const isAssignee = (t) => t?.assignee_id === user?.id;
 
-  // Create (owner by default via DB; no user_id sent)
+  const canOpenEdit = (t) =>
+    isAdmin || t?.user_id === user?.id || isAssignee(t);
+
   async function handleAddTask(e) {
     e.preventDefault();
     if (!user?.id) return;
+
+    if (!isAdmin) {
+      const msg = "Only admins can create tasks.";
+      setErr(msg);
+      showToast(msg, "danger");
+      return;
+    }
 
     if (!projectId) return setErr("Please select a project.");
     if (dueDate && isBefore(dueDate, today))
       return setErr("End date cannot be in the past.");
     if (dueDate && isBefore(dueDate, assignDate))
       return setErr("End date cannot be before the assign date.");
-
-    // Guard: non-admins can only add tasks to their own projects
-    if (!isAdmin && !projectsForAssign.some((p) => p.id === projectId)) {
-      const msg = "You can only add tasks to your own projects.";
-      setErr(msg);
-      showToast(msg, "danger");
-      return;
-    }
 
     setSubmitting(true);
     setErr("");
@@ -393,11 +378,15 @@ export default function Dashboard({ user: userProp }) {
     setSubmitting(false);
   }
 
-  // Quick status change (OWNER or ADMIN)
   async function handleChangeStatus(id, newStatus) {
     const row = tasks.find((t) => t.id === id);
-    if (row && !canEditTask(row)) {
-      showToast("You can only update your own task.", "warning");
+    if (!row) return;
+
+    if (!(isAdmin || isAssignee(row))) {
+      showToast(
+        "Only the assignee or an admin can update the status.",
+        "warning"
+      );
       return;
     }
 
@@ -415,10 +404,13 @@ export default function Dashboard({ user: userProp }) {
     }
   }
 
-  // Edit handlers (OWNER or ADMIN)
+  // Edit handlers
   function startEdit(t) {
-    if (!canEditTask(t)) {
-      showToast("You can only edit your own task.", "warning");
+    if (!canOpenEdit(t)) {
+      showToast(
+        "You can only edit tasks assigned to you (or your own).",
+        "warning"
+      );
       return;
     }
     setEditingId(t.id);
@@ -442,8 +434,13 @@ export default function Dashboard({ user: userProp }) {
       assignee_id: "",
     });
   }
+
   async function saveEdit() {
     if (!user?.id || !editingId) return;
+
+    const row = tasks.find((t) => t.id === editingId);
+    if (!row) return;
+
     const {
       project_id,
       assign_date,
@@ -459,38 +456,51 @@ export default function Dashboard({ user: userProp }) {
     if (due_date && isBefore(due_date, assign_date))
       return setErr("End date cannot be before the assign date.");
 
-    // Guard: non-admins can only move tasks to their own projects
-    if (!isAdmin && !projectsForAssign.some((p) => p.id === project_id)) {
-      const msg = "You can only move tasks to your own projects.";
-      setErr(msg);
-      showToast(msg, "danger");
-      return;
-    }
+    let patch;
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({
+    if (isAdmin) {
+      patch = {
         project_id,
         assign_date,
         due_date: due_date || null,
         status,
         description: description?.trim() || null,
         assignee_id: assignee_id || null,
-      })
+      };
+    } else if (isAssignee(row)) {
+      patch = {
+        project_id: row.project_id,
+        assign_date: row.assign_date,
+        assignee_id: row.assignee_id,
+        // allowed fields
+        due_date: due_date || null,
+        status,
+        description: description?.trim() || null,
+      };
+    } else {
+      showToast("You can only edit tasks assigned to you.", "warning");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .update(patch)
       .eq("id", editingId)
       .select()
       .single();
 
-    if (error) return setErr(error.message);
+    if (error) {
+      setErr(error.message);
+      return;
+    }
     setTasks((list) => list.map((t) => (t.id === editingId ? data : t)));
     cancelEdit();
     showToast("Task updated.", "success");
   }
 
-  // Delete (OWNER or ADMIN)
   async function handleDeleteTask(id) {
     const row = tasks.find((t) => t.id === id);
-    if (row && !canEditTask(row)) {
+    if (row && !(isAdmin || row.user_id === user?.id)) {
       showToast("You can only delete your own task.", "warning");
       return;
     }
@@ -507,11 +517,14 @@ export default function Dashboard({ user: userProp }) {
     }
   }
 
-  // Modals
   const openView = (t) => setViewTask(t);
   const closeView = () => setViewTask(null);
   const openAddModal = () => {
     setErr("");
+    if (!isAdmin) {
+      showToast("Only admins can create tasks.", "warning");
+      return;
+    }
     setProjectId("");
     setAssignDate(today);
     setDueDate("");
@@ -522,15 +535,13 @@ export default function Dashboard({ user: userProp }) {
   };
   const closeAddModal = () => setShowAddModal(false);
 
-  // Date mins
-  const assignDateMin = undefined; // allow past
+  const assignDateMin = undefined;
   const dueDateMin = assignDate && assignDate > today ? assignDate : today;
 
   return (
     <>
       <NavDashboard />
 
-      {/* Toast */}
       {toast.show && (
         <div
           className={`alert alert-${toast.variant} position-fixed top-0 start-50 translate-middle-x mt-3 shadow`}
@@ -549,7 +560,6 @@ export default function Dashboard({ user: userProp }) {
         </div>
       )}
 
-      {/* View modal */}
       <ViewTaskModal
         task={viewTask}
         onClose={closeView}
@@ -560,13 +570,10 @@ export default function Dashboard({ user: userProp }) {
         userLabel={userLabel}
       />
 
-      {/* Add modal */}
       <AddTaskModal
         show={showAddModal}
         onClose={closeAddModal}
-        projects={
-          projectsForAssign
-        } /* filtered for current user unless admin */
+        projects={projectsForAssign}
         profiles={profiles}
         projectId={projectId}
         setProjectId={setProjectId}
@@ -592,13 +599,17 @@ export default function Dashboard({ user: userProp }) {
         <div className="d-flex align-items-center justify-content-between mb-3">
           <div className="d-flex align-items-center gap-3">
             <h1 className="mb-0">Tasks</h1>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={openAddModal}
-            >
-              Add task
-            </button>
+
+            {isAdmin && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={openAddModal}
+              >
+                Add task
+              </button>
+            )}
+
             <button
               type="button"
               className="btn btn-outline-secondary btn-sm"
@@ -617,10 +628,14 @@ export default function Dashboard({ user: userProp }) {
           </div>
           <div className="text-muted">
             {filteredTasks.length} of {tasks.length} shown
+            {!isAdmin && (
+              <span className="ms-2" title="Only admins can create tasks">
+                · viewer mode
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Filters */}
         <TaskFilters
           q={q}
           setQ={setQ}
@@ -628,20 +643,19 @@ export default function Dashboard({ user: userProp }) {
           setProjectFilter={setProjectFilter}
           assigneeFilter={assigneeFilter}
           setAssigneeFilter={setAssigneeFilter}
-          projects={projects} /* full list for filtering/display */
+          projects={projects} 
           profiles={profiles}
           resetFilters={resetFilters}
         />
 
-        {/* Table */}
         <TaskTable
           loading={loading}
           tasks={filteredTasks}
-          projects={projectsForAssign} /* restrict editing choices */
+          projects={projectsForAssign}
           STATUS_OPTIONS={STATUS_OPTIONS}
           projectName={projectName}
           userLabel={userLabel}
-          userEmail={userEmail} /* ⬅️ NEW: for tooltip on creator */
+          userEmail={userEmail}
           toYMD={toYMD}
           fmtDT={fmtDT}
           editingId={editingId}
@@ -654,7 +668,9 @@ export default function Dashboard({ user: userProp }) {
           handleDeleteTask={handleDeleteTask}
           openView={openView}
           isOverdue={isTaskOverdue}
-          profiles={profiles} /* so Assignee dropdown lists users */
+          profiles={profiles}
+          isAdmin={isAdmin}
+          currentUserId={user?.id || null}
         />
       </main>
     </>

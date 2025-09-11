@@ -9,6 +9,7 @@ export default function SignupForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState("employee");
   const [status, setStatus] = useState({ loading: false, message: "" });
 
   async function handleSubmit(e) {
@@ -16,7 +17,6 @@ export default function SignupForm() {
     setStatus({ loading: true, message: "" });
 
     const emailNormalized = email.trim().toLowerCase();
-
     if (!emailNormalized) {
       setStatus({ loading: false, message: "Please enter an email." });
       return;
@@ -30,12 +30,16 @@ export default function SignupForm() {
     }
 
     try {
-      // 1) Create auth user (email + password)
+      const safeRole = role === "admin" ? "admin" : "employee";
+
       const { data, error } = await supabase.auth.signUp({
         email: emailNormalized,
         password,
         options: {
-          data: { full_name: fullName || null },
+          data: {
+            full_name: fullName || null,
+            role: safeRole, // <- used by DB sync to set profiles.user_role
+          },
           emailRedirectTo: `${window.location.origin}/login`,
         },
       });
@@ -49,21 +53,18 @@ export default function SignupForm() {
         return;
       }
 
-      // ⛔️ Removed: any INSERT/UPSERT into public.signups
-
       // Reset local form state
       setFullName("");
       setEmail("");
       setPassword("");
+      setRole("employee");
 
-      // 2) Only allow dashboard if email is confirmed.
       const user = data.user;
       const isConfirmed = Boolean(
         user?.email_confirmed_at || user?.confirmed_at
       );
 
       if (!isConfirmed) {
-        // If a session was created anyway, clear it so Login page doesn't auto-redirect.
         await supabase.auth.signOut();
         setStatus({
           loading: false,
@@ -125,6 +126,36 @@ export default function SignupForm() {
           />
         </label>
 
+        {/* <fieldset style={styles.fieldset}>
+          <legend style={styles.legend}>Role</legend>
+
+          <label style={styles.radioRow}>
+            <input
+              type="radio"
+              name="role"
+              value="employee"
+              checked={role === "employee"}
+              onChange={() => setRole("employee")}
+            />
+            <span>Employee (default)</span>
+          </label>
+
+          <label style={styles.radioRow}>
+            <input
+              type="radio"
+              name="role"
+              value="admin"
+              checked={role === "admin"}
+              onChange={() => setRole("admin")}
+            />
+            <span>Admin (can create projects & tasks, assign tasks)</span>
+          </label>
+
+          <div style={styles.helpText}>
+            In production, you should restrict who can sign up as Admin.
+          </div>
+        </fieldset> */}
+
         <button style={styles.button} type="submit" disabled={status.loading}>
           {status.loading ? "Creating…" : "Sign up"}
         </button>
@@ -145,6 +176,20 @@ const styles = {
     borderRadius: 8,
     fontSize: 16,
   },
+  fieldset: {
+    border: "1px solid #eee",
+    borderRadius: 8,
+    padding: "10px 12px",
+  },
+  legend: { padding: "0 6px", fontWeight: 600, fontSize: 14 },
+  radioRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    fontWeight: 500,
+  },
+  helpText: { fontSize: 12, opacity: 0.75, marginTop: 6 },
   button: {
     padding: "10px 14px",
     border: 0,

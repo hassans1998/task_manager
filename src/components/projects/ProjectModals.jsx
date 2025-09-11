@@ -38,10 +38,6 @@ export function ViewProjectModal({
         </div>
         <div className="card-body">
           <div className="row g-3">
-            <div className="col-md-6">
-              <div className="text-muted small">Project ID</div>
-              <div className="fw-semibold text-truncate">{project.id}</div>
-            </div>
             <div className="col-md-3">
               <div className="text-muted small">Status</div>
               <div className="fw-semibold">{statusLabel(project.status)}</div>
