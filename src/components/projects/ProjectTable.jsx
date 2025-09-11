@@ -17,9 +17,10 @@ export default function ProjectTable({
   handleDelete,
   openView,
   editEndMin,
-  isOverdue, // highlight name when overdue
-  userLabel, // ⬅️ NEW: maps user_id -> display name
-  userEmail, // ⬅️ NEW: maps user_id -> email (for tooltip)
+  isOverdue,
+  userLabel,
+  userEmail,
+  isAdmin,
 }) {
   return (
     <div className="table-responsive">
@@ -27,7 +28,7 @@ export default function ProjectTable({
         <thead>
           <tr>
             <th>Project name</th>
-            <th>Creator</th> {/* ⬅️ NEW */}
+            <th>Creator</th>
             <th>Status</th>
             <th>Start date</th>
             <th>End date</th>
@@ -47,12 +48,11 @@ export default function ProjectTable({
             </tr>
           ) : (
             projects.map((p) => {
-              const isEditingRow = editingId === p.id;
+              const isEditingRow = editingId === p.id && isAdmin;
               const overdue = isOverdue?.(p);
 
               return (
                 <tr key={p.id}>
-                  {/* Name + Description (editable) */}
                   <td>
                     {isEditingRow ? (
                       <>
@@ -106,14 +106,12 @@ export default function ProjectTable({
                     )}
                   </td>
 
-                  {/* Creator (name with email tooltip) */}
                   <td>
                     <span title={userEmail?.(p.user_id)}>
                       {userLabel?.(p.user_id)}
                     </span>
                   </td>
 
-                  {/* Status */}
                   <td>
                     {isEditingRow ? (
                       <select
@@ -137,7 +135,6 @@ export default function ProjectTable({
                     )}
                   </td>
 
-                  {/* Start */}
                   <td>
                     {isEditingRow ? (
                       <input
@@ -157,7 +154,6 @@ export default function ProjectTable({
                     )}
                   </td>
 
-                  {/* End */}
                   <td>
                     {isEditingRow ? (
                       <input
@@ -177,11 +173,9 @@ export default function ProjectTable({
                     )}
                   </td>
 
-                  {/* Created / Updated */}
                   <td>{fmtDT(p.created_at)}</td>
                   <td>{fmtDT(p.updated_at)}</td>
 
-                  {/* Actions */}
                   <td>
                     {isEditingRow ? (
                       <div className="btn-group btn-group-sm">
@@ -203,18 +197,22 @@ export default function ProjectTable({
                         >
                           View
                         </button>
-                        <button
-                          className="btn btn-outline-secondary"
-                          onClick={() => startEdit(p)}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn btn-outline-danger"
-                          onClick={() => handleDelete(p.id)}
-                        >
-                          Delete
-                        </button>
+                        {isAdmin && (
+                          <>
+                            <button
+                              className="btn btn-outline-secondary"
+                              onClick={() => startEdit(p)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-outline-danger"
+                              onClick={() => handleDelete(p.id)}
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                   </td>

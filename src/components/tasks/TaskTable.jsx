@@ -8,7 +8,7 @@ export default function TaskTable({
   STATUS_OPTIONS,
   projectName,
   userLabel,
-  userEmail, // ⬅️ NEW: for creator email tooltip
+  userEmail,
   toYMD,
   fmtDT,
   editingId,
@@ -20,15 +20,23 @@ export default function TaskTable({
   handleChangeStatus,
   handleDeleteTask,
   openView,
-  isOverdue, // used to color the project column
-  profiles, // list of users for the Assignee dropdown
+  isOverdue,
+  profiles,
+  isAdmin,
+  currentUserId,
 }) {
-  // Date mins for edit row
   const editAssignMin = undefined;
+  const todayYMD = toYMD(new Date());
   const editDueMin =
-    editValues.assign_date && editValues.assign_date > toYMD(new Date())
+    editValues.assign_date && editValues.assign_date > todayYMD
       ? editValues.assign_date
-      : toYMD(new Date());
+      : todayYMD;
+
+  const getStatusLabel = (v) =>
+    STATUS_OPTIONS.find((o) => o.value === v)?.label || v;
+
+  const computeOverdue = (dueYMD, statusVal) =>
+    Boolean(dueYMD && dueYMD < todayYMD && String(statusVal) !== "done");
 
   return (
     <div className="table-responsive">
@@ -36,7 +44,7 @@ export default function TaskTable({
         <thead>
           <tr>
             <th>Project</th>
-            <th>Creator</th> {/* ⬅️ NEW */}
+            <th>Creator</th>
             <th>Assign date</th>
             <th>End date</th>
             <th>Status</th>
@@ -50,7 +58,7 @@ export default function TaskTable({
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={10}>Loading…</td> {/* 10 visible columns */}
+              <td colSpan={10}>Loading…</td>
             </tr>
           ) : tasks.length === 0 ? (
             <tr>
@@ -59,13 +67,24 @@ export default function TaskTable({
           ) : (
             tasks.map((t) => {
               const isEditing = editingId === t.id;
-              const overdue = isOverdue?.(t);
+              const isAssignee =
+                currentUserId && t.assignee_id === currentUserId;
+              const canAssigneeEdit = isAdmin || isAssignee;
+              const adminOnly = isAdmin;
+
+              const rowDueYMD = isEditing
+                ? editValues.due_date
+                : toYMD(t.due_date);
+              const rowStatus = isEditing ? editValues.status : t.status;
+
+              const overdue = isEditing
+                ? computeOverdue(rowDueYMD, rowStatus)
+                : isOverdue?.(t) ?? computeOverdue(rowDueYMD, rowStatus);
 
               return (
                 <tr key={t.id}>
-                  {/* Project (turn red if overdue) */}
                   <td>
-                    {isEditing ? (
+                    {isEditing && adminOnly ? (
                       <select
                         className="form-select form-select-sm shadow-none"
                         value={editValues.project_id}
@@ -98,16 +117,14 @@ export default function TaskTable({
                     )}
                   </td>
 
-                  {/* Creator (task owner) */}
                   <td>
                     <span title={userEmail?.(t.user_id)}>
                       {userLabel?.(t.user_id)}
                     </span>
                   </td>
 
-                  {/* Assign date */}
                   <td>
-                    {isEditing ? (
+                    {isEditing && adminOnly ? (
                       <input
                         type="date"
                         className="form-control form-control-sm shadow-none"
@@ -126,9 +143,8 @@ export default function TaskTable({
                     )}
                   </td>
 
-                  {/* End date */}
                   <td>
-                    {isEditing ? (
+                    {isEditing && canAssigneeEdit ? (
                       <input
                         type="date"
                         className="form-control form-control-sm shadow-none"
@@ -146,9 +162,8 @@ export default function TaskTable({
                     )}
                   </td>
 
-                  {/* Status */}
                   <td>
-                    {isEditing ? (
+                    {isEditing && canAssigneeEdit ? (
                       <select
                         className="form-select form-select-sm shadow-none"
                         value={editValues.status}
@@ -165,7 +180,7 @@ export default function TaskTable({
                           </option>
                         ))}
                       </select>
-                    ) : (
+                    ) : canAssigneeEdit ? (
                       <select
                         className="form-select form-select-sm shadow-none"
                         value={t.status}
@@ -179,12 +194,13 @@ export default function TaskTable({
                           </option>
                         ))}
                       </select>
+                    ) : (
+                      getStatusLabel(t.status)
                     )}
                   </td>
 
-                  {/* Assignee */}
                   <td>
-                    {isEditing ? (
+                    {isEditing && adminOnly ? (
                       <select
                         className="form-select form-select-sm shadow-none"
                         value={editValues.assignee_id || ""} // keep controlled
@@ -213,9 +229,8 @@ export default function TaskTable({
                     )}
                   </td>
 
-                  {/* Description */}
                   <td style={{ maxWidth: 280 }}>
-                    {isEditing ? (
+                    {isEditing && canAssigneeEdit ? (
                       <textarea
                         className="form-control form-control-sm shadow-none"
                         rows={2}
@@ -232,17 +247,16 @@ export default function TaskTable({
                       <span
                         className="text-truncate d-inline-block"
                         style={{ maxWidth: 260 }}
+                        title={t.description || ""}
                       >
                         {t.description || "—"}
                       </span>
                     )}
                   </td>
 
-                  {/* Timestamps */}
                   <td>{fmtDT(t.created_at)}</td>
                   <td>{fmtDT(t.updated_at)}</td>
 
-                  {/* Actions */}
                   <td>
                     {isEditing ? (
                       <div className="btn-group btn-group-sm">
@@ -270,12 +284,14 @@ export default function TaskTable({
                         >
                           Edit
                         </button>
-                        <button
-                          className="btn btn-outline-danger"
-                          onClick={() => handleDeleteTask(t.id)}
-                        >
-                          Delete
-                        </button>
+                        {isAdmin && (
+                          <button
+                            className="btn btn-outline-danger"
+                            onClick={() => handleDeleteTask(t.id)}
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     )}
                   </td>

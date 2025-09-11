@@ -70,17 +70,7 @@ export default function NavDashboard() {
           {displayName}
         </Link>
 
-        <ul className="navbar-nav ms-3">
-          <li className="nav-item">
-            <NavLink
-              to="/dashboard"
-              className={({ isActive }) =>
-                `nav-link ${isActive ? "active" : ""}`
-              }
-            >
-              Dashboard
-            </NavLink>
-          </li>
+        <ul className="navbar-nav mx-auto">
           <li className="nav-item">
             <NavLink
               to="/projects"
@@ -89,6 +79,16 @@ export default function NavDashboard() {
               }
             >
               Projects
+            </NavLink>
+          </li>
+          <li className="nav-item">
+            <NavLink
+              to="/dashboard"
+              className={({ isActive }) =>
+                `nav-link ${isActive ? "active" : ""}`
+              }
+            >
+              Tasks
             </NavLink>
           </li>
         </ul>

@@ -40,10 +40,6 @@ export function ViewTaskModal({
         </div>
         <div className="card-body">
           <div className="row g-3">
-            <div className="col-md-6">
-              <div className="text-muted small">Task ID</div>
-              <div className="fw-semibold text-truncate">{task.id}</div>
-            </div>
             <div className="col-md-3">
               <div className="text-muted small">Assign date</div>
               <div className="fw-semibold">
