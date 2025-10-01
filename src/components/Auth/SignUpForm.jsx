@@ -1,24 +1,26 @@
 /* eslint-disable no-unused-vars */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabaseClient";
-import NavPublic from "./NavPublic";
+import { supabase } from "../../lib/supabaseClient";
+import NavPublic from "../NavPublic";
 
 export default function SignupForm() {
   const navigate = useNavigate();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState(""); // NEW
   const [role, setRole] = useState("employee");
   const [status, setStatus] = useState({ loading: false, message: "" });
 
+  // --- Google OAuth ---
   async function handleGoogleSignup() {
     try {
       setStatus({ loading: true, message: "" });
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/login`, // or /dashboard if you prefer
+          redirectTo: `${window.location.origin}/dashboard`,
           scopes: "email profile",
         },
       });
@@ -29,7 +31,6 @@ export default function SignupForm() {
         });
         return;
       }
-      // Supabase will redirect to Google; leave a friendly message until then
       setStatus({ loading: true, message: "Redirecting to Google…" });
     } catch (err) {
       setStatus({
@@ -39,6 +40,7 @@ export default function SignupForm() {
     }
   }
 
+  // --- Email/Password Signup ---
   async function handleSubmit(e) {
     e.preventDefault();
     setStatus({ loading: true, message: "" });
@@ -65,7 +67,8 @@ export default function SignupForm() {
         options: {
           data: {
             full_name: fullName || null,
-            role: safeRole, // <- used by DB sync to set profiles.user_role
+            role: safeRole,
+            phone: phone || null, // NEW
           },
           emailRedirectTo: `${window.location.origin}/login`,
         },
@@ -80,11 +83,14 @@ export default function SignupForm() {
         return;
       }
 
+      // Reset form
       setFullName("");
       setEmail("");
       setPassword("");
+      setPhone(""); // Reset phone
       setRole("employee");
 
+      // Supabase requires email confirmation
       const user = data.user;
       const isConfirmed = Boolean(
         user?.email_confirmed_at || user?.confirmed_at
@@ -95,13 +101,13 @@ export default function SignupForm() {
         setStatus({
           loading: false,
           message:
-            "We’ve sent you a confirmation email. Click the link, then log in.",
+            "✅ We’ve sent you a confirmation email. Please verify, then log in.",
         });
         navigate("/login");
         return;
       }
 
-      setStatus({ loading: false, message: "Account created!" });
+      setStatus({ loading: false, message: "🎉 Account created!" });
       navigate("/dashboard");
     } catch (err) {
       setStatus({
@@ -178,6 +184,17 @@ export default function SignupForm() {
         </label>
 
         <label style={styles.label}>
+          Phone number
+          <input
+            style={styles.input}
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 234 567 890"
+          />
+        </label>
+
+        <label style={styles.label}>
           Password*
           <input
             style={styles.input}
@@ -214,36 +231,12 @@ const styles = {
     cursor: "pointer",
     fontSize: 16,
   },
-  divider: {
-    position: "relative",
-    textAlign: "center",
-    margin: "8px 0 4px",
-  },
+  divider: { textAlign: "center", margin: "8px 0 4px" },
   dividerText: {
     background: "#fff",
     padding: "0 8px",
     color: "#888",
     fontSize: 12,
-    position: "relative",
-    zIndex: 1,
-  },
-  segmented: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 8,
-    marginBottom: 6,
-  },
-  segmentBtn: {
-    padding: "8px 10px",
-    borderRadius: 8,
-    border: "1px solid #ddd",
-    background: "#fff",
-    cursor: "pointer",
-    fontSize: 14,
-  },
-  segmentBtnActive: {
-    borderColor: "#0d6efd",
-    boxShadow: "0 0 0 2px rgba(13,110,253,0.15)",
   },
   label: { display: "grid", gap: 6, fontWeight: 500 },
   input: {

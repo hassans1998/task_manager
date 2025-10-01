@@ -91,6 +91,16 @@ export default function NavDashboard() {
               Tasks
             </NavLink>
           </li>
+          <li className="nav-item">
+            <NavLink
+              to="/timesheet"
+              className={({ isActive }) =>
+                `nav-link ${isActive ? "active" : ""}`
+              }
+            >
+              Timesheets
+            </NavLink>
+          </li>
         </ul>
 
         <div className="ms-auto">
