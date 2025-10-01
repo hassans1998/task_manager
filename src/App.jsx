@@ -1,9 +1,10 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import SignUpForm from "./components/SignUpForm";
-import Login from "./components/Login";
+import SignUpForm from "./components/Auth/SignUpForm";
+import Login from "./components/Auth/Login";
 import Dashboard from "./components/Dashboard";
-import Projects from "./components/Projects"; // <-- add this
-import ResetPassword from "./components/ResetPassword";
+import Projects from "./components/Projects";
+import Timesheet from "./components/Timesheet";
+import ResetPassword from "./components/Auth/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
@@ -27,6 +28,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Projects />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/timesheet"
+        element={
+          <ProtectedRoute>
+            <Timesheet />
           </ProtectedRoute>
         }
       />
